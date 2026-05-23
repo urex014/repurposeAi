@@ -69,11 +69,29 @@ export async function POST(request: NextRequest) {
         transaction.status = 'success';
         await transaction.save({ session });
 
-        await User.findByIdAndUpdate(
+        const user = await User.findByIdAndUpdate(
           transaction.userId,
           { $inc: { credits: transaction.creditsAdded } },
           { new: true, session }
         );
+
+        //affiliate logic
+
+        if (user && user.referredBy) {
+          const bonusCredits = Math.floor(transaction.creditsAdded * 0.20); // 20% commission
+          
+          await User.findByIdAndUpdate(
+            user.referredBy,
+            { 
+              $inc: { 
+                credits: bonusCredits,
+                referralCreditsEarned: bonusCredits 
+              } 
+            },
+            { session }
+          );
+          console.log(`[Affiliate] Credited ${bonusCredits} to referrer.`);
+        }
 
         await session.commitTransaction();
         console.log(`[Paystack Webhook] Successfully credited ${transaction.creditsAdded} to user.`);

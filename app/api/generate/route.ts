@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     // Calculate how many credits are needed based on selected options
     const requestedTasks = Object.keys(options).filter(key => options[key as keyof typeof options]);
-    const creditsNeeded = requestedTasks.length;
+    const creditsNeeded = requestedTasks.length*10;
 
     if (creditsNeeded === 0) {
       return NextResponse.json({ error: 'No output formats selected' }, { status: 400 });
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
         taskType: result.taskType,
         input: text.substring(0, 1000), // Trim input to save DB space
         output: result.output,
-        creditsConsumed: 1,
+        creditsConsumed: 10,
       });
     }
 

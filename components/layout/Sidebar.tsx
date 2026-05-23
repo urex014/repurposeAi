@@ -21,8 +21,8 @@ interface UserProps {
 
 const NAVIGATION = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Content AI', href: '/dashboard/ai-tools', icon: FileText },
-  { name: 'Social AI', href: '/dashboard/social-tools', icon: MessageSquare },
+  // { name: 'Content AI', href: '/dashboard/ai-tools', icon: FileText },
+  { name: 'Affiliate Program', href: '/dashboard/affiliate', icon: MessageSquare },
   { name: 'Billing & Credits', href: '/dashboard/billing', icon: CreditCard },
 ];
 

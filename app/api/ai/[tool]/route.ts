@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/ai/[tool]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
@@ -67,14 +68,14 @@ export async function POST(
       
       CreditUsage.create({
         userId: user._id,
-        service: tool,
+        service: tool as any,
         creditsUsed: serviceConfig.cost,
         prompt: prompt.substring(0, 500), // Only store the first 500 chars to save DB space
       }),
       
       AiTask.create({
         userId: user._id,
-        taskType: tool,
+        taskType: tool as any,
         input: prompt,
         output: aiOutput,
         creditsConsumed: serviceConfig.cost,

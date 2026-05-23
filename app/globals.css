@@ -1,6 +1,6 @@
 /* app/globals.css */
 @import "tailwindcss";
-@plugin "tailwindcss/typography";
+@plugin "@tailwindcss/typography";
 
 @theme {
   /* 1. Custom Colors */

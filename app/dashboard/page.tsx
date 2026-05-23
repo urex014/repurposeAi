@@ -62,7 +62,7 @@ export default function DashboardPage() {
     newsletter: false,
   })
 
-  const requiredCredits = Object.values(options).filter(Boolean).length
+  const requiredCredits = Object.values(options).filter(Boolean).length*10
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault()

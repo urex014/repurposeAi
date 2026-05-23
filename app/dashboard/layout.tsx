@@ -43,6 +43,7 @@ export default async function DashboardLayout({
     credits: user.credits,
     role: user.role,
   };
+  // console.log('Authenticated user:', serializedUser);
 
   return (
     <div className="flex h-screen bg-slate-950 text-slate-200 overflow-hidden font-sans">

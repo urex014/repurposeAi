@@ -11,6 +11,11 @@ export interface IUser extends Document {
   role: 'user' | 'admin';
   createdAt: Date;
   updatedAt: Date;
+  referralCode: string;
+  referredBy?: mongoose.Types.ObjectId;
+  referralsCount: number;
+  referralEarnings: number;
+  referralCreditsEarned?: number;
 }
 
 const UserSchema = new Schema<IUser>(
@@ -22,6 +27,10 @@ const UserSchema = new Schema<IUser>(
     resetPasswordExpires: { type: Date },
     credits: { type: Number, default: 100 }, // Default free starter credits
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
+    referralCode: { type: String, unique: true, sparse: true },
+    referredBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    referralsCount: { type: Number, default: 0 },
+    referralEarnings: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

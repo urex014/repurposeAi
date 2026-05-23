@@ -8,6 +8,7 @@ export default function RegisterPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [ref, setRef] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -21,7 +22,7 @@ export default function RegisterPage() {
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name, email, password, ref }),
       });
 
       const data = await response.json();
@@ -94,6 +95,19 @@ export default function RegisterPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                className="mt-1 block w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-blue-500 text-sm transition-colors"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="ref" className="block text-sm font-medium text-slate-300">
+                Refferal code (optional)
+              </label>
+              <input
+                id="ref"
+                type="text"
+                value={ref}
+                onChange={(e) => setRef(e.target.value)}
                 className="mt-1 block w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-blue-500 text-sm transition-colors"
               />
             </div>
