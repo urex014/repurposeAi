@@ -24,7 +24,7 @@ export async function generateAiContent({
   try {
     // Initialize the model with the specific system instruction for the current task
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-lite',
+      model: 'gemini-3.5-flash',
       systemInstruction: systemInstruction,
       generationConfig: {
         temperature,
