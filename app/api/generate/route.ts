@@ -1,90 +1,113 @@
 // app/api/generate/route.ts
-import { NextResponse } from "next/server"
-import { auth } from "@/auth"
-import clientPromise from "@/lib/mongodb"
-import { GoogleGenerativeAI } from "@google/generative-ai"
+import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import jwt from 'jsonwebtoken';
+import { connectToDatabase } from '@/lib/db';
+import User from '@/models/User';
+import AiTask from '@/models/AiTask';
+import { generateAiContent } from '@/lib/gemini';
 
-// Initialize the Gemini SDK
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string)
+// Define the specific prompts for your dashboard options
+const PROMPT_TEMPLATES = {
+  videoScript: "You are an expert video producer. Convert the following text into a highly engaging, 1-2 minute video script suitable for TikTok, Instagram Reels, or YouTube Shorts. Include visual cues (e.g., [Camera cuts to...]) and spoken dialogue.",
+  socialPosts: "You are a viral social media manager. Create 3 to 5 highly engaging social media posts (suitable for LinkedIn or X/Twitter) based on the following text. Use strong hooks, appropriate line breaks, and 2-3 relevant hashtags per post.",
+  newsletter: "You are an expert copywriter. Summarize the core value of the following text into a punchy, 150-200 word newsletter snippet. End with a strong Call to Action (CTA)."
+};
 
-export async function POST(req: Request) {
+export async function POST(request: NextRequest) {
   try {
-    // 1. Authenticate Request
-    const session = await auth()
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    // 1. Authenticate User
+    const cookieStore = await cookies();
+    const token = cookieStore.get('auth_token')?.value;
+
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 2. Parse Input
-    const { text, options } = await req.json()
-    const requestedOutputs = Object.keys(options).filter((key) => options[key])
-    const creditsNeeded = requestedOutputs.length
+    const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as { userId: string };
+    const userId = decoded.userId;
 
-    if (!text || creditsNeeded === 0) {
-      return NextResponse.json({ error: "Invalid input" }, { status: 400 })
+    // 2. Parse Request
+    const body = await request.json();
+    const { text, options } = body;
+
+    if (!text) {
+      return NextResponse.json({ error: 'Content is required' }, { status: 400 });
     }
 
-    // 3. Connect to DB & Check Credits
-    const client = await clientPromise
-    const db = client.db()
-    const user = await db.collection("users").findOne({ email: session.user.email })
+    // Calculate how many credits are needed based on selected options
+    const requestedTasks = Object.keys(options).filter(key => options[key as keyof typeof options]);
+    const creditsNeeded = requestedTasks.length;
 
-    if (!user || (user.credits ?? 0) < creditsNeeded) {
-      return NextResponse.json({ error: "Insufficient credits" }, { status: 402 })
+    if (creditsNeeded === 0) {
+      return NextResponse.json({ error: 'No output formats selected' }, { status: 400 });
     }
 
-    // 4. Prepare Prompts (System Instructions)
-    const prompts: Record<string, string> = {
-      videoScript: "Convert the provided blog post into a highly engaging 1-2 minute video script suitable for TikTok or Instagram Reels. Include visual cues in brackets [like this].",
-      socialPosts: "Extract the core value from the provided blog post and write 3 distinct, engaging social media posts suitable for X (Twitter) or LinkedIn. Number them clearly.",
-      newsletter: "Write a 150-200 word email newsletter summarizing the provided blog post. Make it conversational and end with a call to action."
+    // 3. Check Database & Balance
+    await connectToDatabase();
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // 5. Execute Gemini Calls Concurrently
-    const aiPromises = requestedOutputs.map(async (type) => {
-      // Initialize the model with the specific system instruction for this output type
-      const model = genAI.getGenerativeModel({
-        model: "gemini-2.5-flash", // Lightning fast, perfect for text parsing
-        systemInstruction: prompts[type],
-      })
+    if (user.credits < creditsNeeded) {
+      return NextResponse.json({ 
+        error: `Insufficient credits. You need ${creditsNeeded} but have ${user.credits}.` 
+      }, { status: 403 });
+    }
 
-      const result = await model.generateContent(text)
-      const responseText = result.response.text()
+    // 4. Execute AI Tasks in Parallel (for maximum speed)
+    const generationPromises = requestedTasks.map(async (taskType) => {
+      const systemInstruction = PROMPT_TEMPLATES[taskType as keyof typeof PROMPT_TEMPLATES];
+      
+      const output = await generateAiContent({
+        systemInstruction,
+        userPrompt: text,
+      });
 
-      return { type, content: responseText }
-    })
+      return { taskType, output };
+    });
 
-    const resultsArray = await Promise.all(aiPromises)
+    // Wait for all selected Gemini API calls to finish
+    const generatedResults = await Promise.all(generationPromises);
 
-    // Format results into an object
-    const outputs = resultsArray.reduce((acc, curr) => {
-      acc[curr.type] = curr.content
-      return acc
-    }, {} as Record<string, string>)
+    // 5. Format the response object to match what your frontend expects
+    const responseData: Record<string, string> = {};
+    const taskRecordsToSave = [];
 
-    // 6. Deduct Credits & Save Generated Content
-    await db.collection("users").updateOne(
-      { email: session.user.email },
-      { $inc: { credits: -creditsNeeded } }
-    )
+    for (const result of generatedResults) {
+      responseData[result.taskType] = result.output;
+      
+      // Prepare DB records for history tracking
+      taskRecordsToSave.push({
+        userId: user._id,
+        taskType: result.taskType,
+        input: text.substring(0, 1000), // Trim input to save DB space
+        output: result.output,
+        creditsConsumed: 1,
+      });
+    }
 
-    await db.collection("content").insertOne({
-      userId: user._id,
-      originalText: text,
-      outputs,
-      creditsUsed: creditsNeeded,
-      createdAt: new Date(),
-    })
+    // 6. Deduct credits and save history atomically
+    user.credits -= creditsNeeded;
+    
+    await Promise.all([
+      user.save(),
+      AiTask.insertMany(taskRecordsToSave)
+    ]);
 
-    // 7. Return Success
+    // 7. Return to your frontend
     return NextResponse.json({
       success: true,
-      data: outputs,
-      remainingCredits: user.credits - creditsNeeded
-    })
+      data: responseData,
+      creditsRemaining: user.credits,
+    }, { status: 200 });
 
-  } catch (error) {
-    console.error("Gemini generation error:", error)
-    return NextResponse.json({ error: "Failed to generate content" }, { status: 500 })
+  } catch (error: any) {
+    console.error('[Generate API Error]:', error);
+    return NextResponse.json({ 
+      error: error.message || 'An error occurred while generating content' 
+    }, { status: 500 });
   }
 }

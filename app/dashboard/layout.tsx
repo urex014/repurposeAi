@@ -1,73 +1,67 @@
-// app/dashboard/layout.tsx
-import { auth, signOut } from "@/auth"
-import { redirect } from "next/navigation"
-import Link from "next/link"
-import { BuyCreditsButton } from "@/components/BuyCreditButton"
+import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
+import jwt from 'jsonwebtoken';
+import { connectToDatabase } from '@/lib/db';
+import User from '@/models/User';
+import Sidebar from '@/components/layout/Sidebar';
+import Navbar from '@/components/layout/Navbar';
 
-export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const session = await auth()
+export default async function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get('auth_token')?.value;
 
-  // Protect the route: boot them to login if no session exists
-  if (!session) redirect("/login")
+  if (!token) {
+    redirect('/login');
+  }
+
+  let userId;
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as { userId: string };
+    userId = decoded.userId;
+  } catch (error) {
+    // Token is expired or invalid
+    redirect('/login');
+  }
+
+  await connectToDatabase();
+  // Use .lean() for faster queries when you only need standard JS objects, not full Mongoose documents
+  const user = await User.findById(userId).select('name email credits role').lean();
+
+  if (!user) {
+    redirect('/login');
+  }
+
+  // Serialize the MongoDB document to pass safely to Client Components
+  const serializedUser = {
+    id: user._id.toString(),
+    name: user.name,
+    email: user.email,
+    credits: user.credits,
+    role: user.role,
+  };
 
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-50 font-sans selection:bg-indigo-500/30">
+    <div className="flex h-screen bg-slate-950 text-slate-200 overflow-hidden font-sans">
+      {/* Desktop Sidebar */}
+      <div className="hidden md:flex md:flex-shrink-0">
+        <Sidebar user={serializedUser} />
+      </div>
 
-      {/* Sidebar */}
-      <aside className="w-64 border-r border-slate-800 bg-slate-900/50 p-6 flex flex-col justify-between">
-        <div>
-          <Link href="/dashboard" className="text-2xl font-bold tracking-tight mb-8 block">
-            Repurpose<span className="text-indigo-500">AI</span>
-          </Link>
-
-          <nav className="space-y-2">
-            <Link
-              href="/dashboard"
-              className="block px-4 py-2.5 bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 rounded-lg font-medium transition-colors"
-            >
-              New Generation
-            </Link>
-            <Link
-              href="/dashboard/history"
-              className="block px-4 py-2.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
-            >
-              Past Outputs
-            </Link>
-          </nav>
-        </div>
-
-        {/* User Profile, Credits & Logout */}
-        <div className="border-t border-slate-800 pt-6">
-          {/* Credit Counter */}
-          <div className="mb-6 rounded-lg border border-slate-700 bg-slate-800/50 p-4">
-            <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-1">Available Credits</p>
-            <p className="text-2xl font-bold text-slate-100">10</p>
-            <BuyCreditsButton />
-            {/* Note: In a real app, fetch the live credit count from the DB here */}
+      <div className="flex flex-col flex-1 w-full">
+        {/* Top Navbar handles mobile sidebar toggle & credit display */}
+        <Navbar user={serializedUser} />
+        
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-y-auto bg-slate-950 p-4 md:p-8">
+          <div className="max-w-6xl mx-auto">
+            {children}
           </div>
-
-          <p className="text-sm font-medium text-slate-200 mb-1">{session.user?.name}</p>
-          <p className="text-xs text-slate-500 mb-4 truncate">{session.user?.email}</p>
-
-          <form
-            action={async () => {
-              "use server"
-              await signOut({ redirectTo: "/login" })
-            }}
-          >
-            <button className="w-full text-left text-sm text-red-400 hover:text-red-300 transition-colors">
-              Log Out
-            </button>
-          </form>
-        </div>
-      </aside>
-
-      {/* Main Workspace */}
-      <main className="flex-1 overflow-y-auto p-8 lg:p-12">
-        <div className="max-w-4xl mx-auto">
-          {children}
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
-  )
+  );
 }

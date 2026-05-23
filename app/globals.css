@@ -1,41 +1,28 @@
+/* app/globals.css */
 @import "tailwindcss";
-@plugin "@tailwindcss/typography";
+@plugin "tailwindcss/typography";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* 1. Custom Colors */
+  --color-brand-primary: #1d4ed8;
+  --color-brand-secondary: #3b82f6;
+  --color-background-dark: #0a0a0a;
+
+  /* 2. Custom Fonts */
+  --font-heading: 'Inter', sans-serif;
+  --font-mono: 'Fira Code', monospace;
+
+  /* 3. Custom Spacing (extends the default scale) */
+  --spacing-18: 4.5rem;
+  --spacing-112: 28rem;
+  
+  /* 4. Custom Border Radii */
+  --radius-card: 1.5rem;
 }
 
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: #334155;
-  /* slate-700 */
-  border-radius: 20px;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* You can still write custom CSS utilities if needed */
+@layer utilities {
+  .text-shadow-sm {
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }
